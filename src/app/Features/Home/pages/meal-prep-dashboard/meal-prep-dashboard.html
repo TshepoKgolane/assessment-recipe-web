@@ -1,0 +1,335 @@
+<div class="father">
+  <div class="hero">
+    <div class="hero-intro">
+      <h1>Turn what you have into a meal plan.</h1>
+      <p class="hero-copy">
+        Add the ingredients in your kitchen to work out which meals you can make from the recipes
+        available to the system.
+      </p>
+      <p class="hero-copy">
+        NOTE: If you unchecheck 'Use Existing recipe' you will need to provide a recipe on the
+        recipe section
+      </p>
+    </div>
+  </div>
+
+  <section class="workspace">
+    <section class="panel ingredients-panel" aria-labelledby="ingredients-title">
+      <div class="panel-heading">
+        <div>
+          <h2 id="ingredients-title">Ingredients</h2>
+          <p class="panel-description">
+            Please provide the name and quantity of the ingredients you have.
+          </p>
+        </div>
+      </div>
+
+      <div class="ingredient-list">
+        <div class="ingredientButtons" style="display: flex; justify-content: end">
+          <label class="checkbox-field">
+            <input
+              type="checkbox"
+              class="checkbox"
+              [ngModel]="usePreExistingRecipes()"
+              (ngModelChange)="updateUsePreExistingRecipes($event)"
+            />
+            Use existing recipes
+          </label>
+          <button class="text-button reset" type="button" (click)="resetIngredients()">
+            Reset
+          </button>
+          <button class="text-button" type="button" (click)="clearIngredients()">Clear</button>
+        </div>
+
+        @for (ingredient of ingredients(); track ingredient.id) {
+          <div class="ingredient-row">
+            <div class="field name-field">
+              <input
+                [id]="'ingredient-name-' + ingredient.id"
+                type="text"
+                placeholder="e.g. Chicken"
+                [ngModel]="ingredient.name"
+                (ngModelChange)="updateIngredientName(ingredient.id, $event)"
+              />
+            </div>
+
+            <div class="field quantity-field">
+              <input
+                [id]="'ingredient-quantity-' + ingredient.id"
+                type="number"
+                min="0"
+                step="1"
+                [ngModel]="ingredient.quantity"
+                (ngModelChange)="updateIngredientQuantity(ingredient.id, $event)"
+              />
+            </div>
+
+            <button
+              class="remove-button"
+              type="button"
+              (click)="removeIngredient(ingredient.id)"
+              [attr.aria-label]="'Remove ' + (ingredient.name || 'ingredient')"
+            >
+              ×
+            </button>
+          </div>
+        }
+      </div>
+
+      <div class="ingredient-actions">
+        <button class="secondary-button" type="button" (click)="addIngredient()">
+          <span>+</span> Add ingredient
+        </button>
+        <button
+          class="primary-button"
+          type="button"
+          [disabled]="isLoading() || !hasUsableIngredients()"
+          (click)="optimize()"
+        >
+          @if (isLoading()) {
+            <span class="spinner"></span> Calculating...
+          } @else {
+            Generate meal plan <span>→</span>
+          }
+        </button>
+      </div>
+    </section>
+
+    <section class="panel results-panel" aria-labelledby="results-title" aria-live="polite">
+      <div class="panel-heading result-heading">
+        <div>
+          <h2 id="results-title">Your meal plan</h2>
+        </div>
+        @if (result(); as mealResult) {
+          <span class="result-badge">{{ mealResult.totalPeopleFed }} people fed</span>
+        }
+      </div>
+
+      @if (errorMessage(); as error) {
+        <div class="feedback error" role="alert">
+          <strong>Couldn’t generate a plan</strong>
+          <span>{{ error }}</span>
+        </div>
+      } @else if (isLoading()) {
+        <div class="empty-result loading-result">
+          <div class="loading-icon">⟳</div>
+          <h3>Processing...</h3>
+          <p>Checking your ingredients against the available recipes.</p>
+        </div>
+      } @else if (result(); as mealResult) {
+        <div class="summary-card">
+          <div>
+            <span class="summary-label">TOTAL PEOPLE FED</span>
+            <strong>{{ mealResult.totalPeopleFed }}</strong>
+          </div>
+        </div>
+
+        <div class="result-section">
+          <div class="result-section-title">
+            <div>
+              <h3>Meals you can prepare</h3>
+            </div>
+            <span class="count-label">{{ mealResult.mealPlan.length }} recipes</span>
+          </div>
+
+          @if (mealResult.mealPlan.length > 0) {
+            <div class="meal-plan-list">
+              @for (meal of mealResult.mealPlan; track meal.recipeName) {
+                <article class="meal-card">
+                  <div class="meal-index">{{ $index + 1 }}</div>
+                  <div class="meal-info">
+                    <strong>{{ meal.recipeName }}</strong>
+                    <span>Feeds {{ meal.feeds }} people per serving</span>
+                  </div>
+                  <div class="meal-amount">
+                    <strong>x{{ meal.amount }}</strong>
+                  </div>
+                </article>
+              }
+            </div>
+          } @else {
+            <p class="empty-state">
+              None of the available recipes can be prepared from these ingredients.
+            </p>
+          }
+        </div>
+
+        <div class="inventory-grid">
+          <div class="result-section inventory-section">
+            <div class="result-section-title">
+              <div>
+                <h3>Ingredients used</h3>
+              </div>
+            </div>
+            <dl class="inventory-list">
+              @for (ingredient of mealResult.ingredientsUsed | keyvalue; track ingredient.key) {
+                <div>
+                  <dt>{{ ingredient.key }}</dt>
+                  <dd>{{ ingredient.value }}</dd>
+                </div>
+              } @empty {
+                <p class="empty-state">No ingredients used.</p>
+              }
+            </dl>
+          </div>
+
+          <div class="result-section inventory-section">
+            <div class="result-section-title">
+              <div>
+                <h3>Still available</h3>
+              </div>
+            </div>
+            <dl class="inventory-list">
+              @for (
+                ingredient of mealResult.ingredientsRemaining | keyvalue;
+                track ingredient.key
+              ) {
+                <div [class.remaining-zero]="ingredient.value === 0">
+                  <dt>{{ ingredient.key }}</dt>
+                  <dd>{{ ingredient.value }}</dd>
+                </div>
+              } @empty {
+                <p class="empty-state">Nothing left over.</p>
+              }
+            </dl>
+          </div>
+        </div>
+      } @else {
+        <div class="empty-result">
+          <div class="empty-icon">+</div>
+          <h3>Your plan will appear here</h3>
+          <p>Add your ingredients on the left, then generate a plan to see what you can make.</p>
+        </div>
+      }
+    </section>
+  </section>
+  @if (!usePreExistingRecipes()) {
+    <section class="panel recipes-panel" aria-labelledby="recipes-title">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Optional</p>
+          <h2 id="recipes-title">Add a recipe</h2>
+          
+        </div>
+        <span class="result-badge">{{ recipes().length }} added</span>
+      </div>
+
+      <div class="recipe-draft">
+        <div class="recipe-header">
+          <div class="field name-field">
+            <label for="draft-recipe-name">Recipe name</label>
+            <input
+              id="draft-recipe-name"
+              type="text"
+              placeholder="e.g. Chicken stir fry"
+              [ngModel]="draftRecipeName()"
+              (ngModelChange)="updateDraftRecipeName($event)"
+            />
+          </div>
+
+          <div class="field quantity-field">
+            <label for="draft-recipe-feeds">Feeds</label>
+            <input
+              id="draft-recipe-feeds"
+              type="number"
+              min="0"
+              step="1"
+              [ngModel]="draftRecipeFeeds()"
+              (ngModelChange)="updateDraftRecipeFeeds($event)"
+            />
+          </div>
+        </div>
+
+        <div class="draft-ingredient-list">
+          @for (ingredient of draftIngredients(); track ingredient.id) {
+            <div class="ingredient-row">
+              <div class="field name-field">
+                <label [for]="'draft-ingredient-name-' + ingredient.id">Ingredient</label>
+                <input
+                  [id]="'draft-ingredient-name-' + ingredient.id"
+                  type="text"
+                  placeholder="e.g. Chicken"
+                  [ngModel]="ingredient.name"
+                  (ngModelChange)="updateDraftIngredientName(ingredient.id, $event)"
+                />
+              </div>
+
+              <div class="field quantity-field">
+                <label [for]="'draft-ingredient-quantity-' + ingredient.id">Qty</label>
+                <input
+                  [id]="'draft-ingredient-quantity-' + ingredient.id"
+                  type="number"
+                  min="0"
+                  step="1"
+                  [ngModel]="ingredient.quantity"
+                  (ngModelChange)="updateDraftIngredientQuantity(ingredient.id, $event)"
+                />
+              </div>
+
+              <button
+                class="remove-button"
+                type="button"
+                (click)="removeDraftIngredient(ingredient.id)"
+                [attr.aria-label]="'Remove ' + (ingredient.name || 'ingredient')"
+              >
+                ×
+              </button>
+            </div>
+          }
+        </div>
+
+        <div class="ingredient-actions">
+          <button class="secondary-button" type="button" (click)="addDraftIngredient()">
+            <span>+</span> Add ingredient
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            [disabled]="!canAddRecipe()"
+            (click)="addRecipe()"
+          >
+            Add recipe
+          </button>
+        </div>
+      </div>
+
+      @if (recipes().length > 0) {
+        <table class="recipe-table">
+          <thead>
+            <tr>
+              <th>Recipe</th>
+              <th>Feeds</th>
+              <th>Ingredients</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (recipe of recipes(); track recipe.id) {
+              <tr>
+                <td>{{ recipe.name }}</td>
+                <td>{{ recipe.feeds }}</td>
+                <td>
+                  @for (ingredient of recipe.ingredients; track ingredient.id; let last = $last) {
+                    {{ ingredient.name }} ×{{ ingredient.quantity }}{{ last ? '' : ', ' }}
+                  }
+                </td>
+                <td>
+                  <button
+                    class="remove-button"
+                    type="button"
+                    (click)="removeRecipe(recipe.id)"
+                    [attr.aria-label]="'Remove ' + recipe.name"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="empty-state">You haven't added any custom recipes yet.</p>
+      }
+    </section>
+  }
+</div>
